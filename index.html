@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruleta de Actividades con Calendario</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f9fafc;
+            color: #333;
+        }
+
+        h1 {
+            color: #0056b3;
+        }
+
+        #contenedor {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        #actividades {
+            text-align: left;
+            max-width: 300px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        #ruleta {
+            margin: 20px auto;
+            position: relative;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            border: 5px solid #0056b3;
+            overflow: visible;
+            background-color: #eef5ff;
+        }
+
+        .flecha {
+            position: absolute;
+            top: 50%;
+            right: -25px;
+            transform: translateY(-50%) rotate(30deg);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 25px solid red;
+            z-index: 10;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background: transparent;
+        }
+
+        button {
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #003d80;
+        }
+
+        #calendario {
+            text-align: center;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+
+        .dias {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .dia {
+            text-align: center;
+            padding: 10px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            background-color: #fff;
+        }
+
+        .dia:hover {
+            background-color: #e0e0e0;
+        }
+
+        .hoy {
+            background-color: #0056b3;
+            color: white;
+        }
+
+        .con-nota {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .hoy.con-nota {
+            background-color: red;
+        }
+
+        .seleccionado {
+            background-color: #d4f8d4;
+        }
+
+        .dias-semana {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .dias-semana div {
+            text-align: center;
+        }
+
+        #notas {
+            margin-top: 20px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: left;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Actividades y Calendario</h1>
+    <div id="contenedor">
+        <div>
+            <div id="actividades">
+                <label><input type="checkbox" value="Patinar" onchange="guardarSeleccion()"> Patinar</label>
+                <label><input type="checkbox" value="Ir al cine" onchange="guardarSeleccion()"> Ir al cine</label>
+                <label><input type="checkbox" value="Ir a la bolera" onchange="guardarSeleccion()"> Ir a la bolera</label>
+                <label><input type="checkbox" value="Ir a la nieve" onchange="guardarSeleccion()"> Ir a la nieve</label>
+                <label><input type="checkbox" value="Ver un monólogo" onchange="guardarSeleccion()"> Ver un monólogo</label>
+                <label><input type="checkbox" value="Ruta por la montaña" onchange="guardarSeleccion()"> Ruta por la montaña</label>
+            </div>
+            <div id="ruleta">
+                <div class="flecha"></div>
+                <canvas id="canvas" width="300" height="300"></canvas>
+            </div>
+            <button onclick="girarRuleta()">Girar Ruleta</button>
+            <p id="resultado"></p>
+        </div>
+        <div id="calendario">
+            <h2>Calendario con Notas</h2>
+            <select id="mes"></select>
+            <select id="anio"></select>
+            <div class="dias-semana">
+                <div>Lun</div>
+                <div>Mar</div>
+                <div>Mié</div>
+                <div>Jue</div>
+                <div>Vie</div>
+                <div>Sáb</div>
+                <div>Dom</div>
+            </div>
+            <div class="dias" id="dias"></div>
+        </div>
+    </div>
+
+    <div id="notas">
+        <h3>Notas del día</h3>
+        <textarea id="nota"></textarea>
+        <button onclick="guardarNota()">Guardar Nota</button>
+        <button onclick="borrarNota()">Borrar Nota</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const checkboxes = document.querySelectorAll('#actividades input');
+        const diasContainer = document.getElementById('dias');
+        const mesSelect = document.getElementById('mes');
+        const anioSelect = document.getElementById('anio');
+        const notaInput = document.getElementById('nota');
+
+        let currentAngle = 0;
+        let spinning = false;
+        let selectedDay = null;
+        const notas = JSON.parse(localStorage.getItem('notasCalendario')) || {};
+
+        const hoy = new Date();
+        const diaHoy = hoy.getDate();
+        const mesHoy = hoy.getMonth();
+        const anioHoy = hoy.getFullYear();
+
+        function guardarSeleccion() {
+            const seleccionadas = Array.from(checkboxes)
+                .filter(checkbox => !checkbox.checked) // Invertir lógica
+                .map(checkbox => checkbox.value);
+            localStorage.setItem('actividadesDisponibles', JSON.stringify(seleccionadas));
+            dibujarRuleta();
+        }
+
+        function restaurarSeleccion() {
+            const seleccionadas = JSON.parse(localStorage.getItem('actividadesDisponibles')) || [];
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !seleccionadas.includes(checkbox.value); // Invertir lógica
+            });
+            dibujarRuleta();
+        }
+
+        function dibujarRuleta() {
+            const opciones = Array.from(checkboxes)
+                .filter(checkbox => !checkbox.checked) // Invertir lógica
+                .map(checkbox => checkbox.value);
+
+            const colores = ["#FF5733", "#33FF57", "#3357FF", "#F4FF33", "#FF33F4", "#33FFF4"];
+            const total = opciones.length;
+            const anguloPorSegmento = (2 * Math.PI) / total;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            opciones.forEach((opcion, i) => {
+                const inicioAngulo = i * anguloPorSegmento;
+                const finAngulo = inicioAngulo + anguloPorSegmento;
+
+                ctx.beginPath();
+                ctx.moveTo(150, 150);
+                ctx.arc(150, 150, 150, inicioAngulo, finAngulo);
+                ctx.fillStyle = colores[i % colores.length];
+                ctx.fill();
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                const textoAngulo = inicioAngulo + anguloPorSegmento / 2;
+                const x = 150 + Math.cos(textoAngulo) * 100;
+                const y = 150 + Math.sin(textoAngulo) * 100;
+                ctx.fillStyle = "#000";
+                ctx.font = "bold 14px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(opcion, x, y);
+            });
+        }
+
+        function girarRuleta() {
+            const opciones = Array.from(checkboxes)
+                .filter(checkbox => !checkbox.checked) // Invertir lógica
+                .map(checkbox => checkbox.value);
+
+            if (opciones.length === 0) {
+                alert('Selecciona al menos una actividad para girar la ruleta.');
+                return;
+            }
+
+            if (spinning) return;
+
+            spinning = true;
+            const totalSegments = opciones.length;
+            const segmentAngle = 360 / totalSegments;
+            const randomSpin = Math.floor(Math.random() * 360) + 1440;
+            const finalAngle = (currentAngle + randomSpin) % 360;
+
+            const selectedSegmentIndex = Math.floor(
+                ((360 - finalAngle) % 360) / segmentAngle
+            );
+
+            const selectedActivity = opciones[selectedSegmentIndex];
+
+            currentAngle += randomSpin;
+
+            canvas.style.transition = "transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)";
+            canvas.style.transform = `rotate(${currentAngle}deg)`;
+
+            setTimeout(() => {
+                spinning = false;
+                canvas.style.transition = "";
+                canvas.style.transform = `rotate(${currentAngle % 360}deg)`;
+                document.getElementById("resultado").textContent = `¡La actividad seleccionada es: ${selectedActivity}!`;
+            }, 4000);
+        }
+
+        function llenarSelects() {
+            const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            meses.forEach((mes, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = mes;
+                if (index === mesHoy) option.selected = true;
+                mesSelect.appendChild(option);
+            });
+
+            for (let i = 2025; i <= 2030; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                if (i === anioHoy) option.selected = true;
+                anioSelect.appendChild(option);
+            }
+        }
+
+        function crearCalendario() {
+            const mes = parseInt(mesSelect.value);
+            const anio = parseInt(anioSelect.value);
+
+            diasContainer.innerHTML = '';
+
+            const primerDia = new Date(anio, mes, 1).getDay();
+            const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+
+            const offset = primerDia === 0 ? 6 : primerDia - 1; // Ajustar para que la semana comience en lunes
+
+            for (let i = 0; i < offset; i++) {
+                const espacio = document.createElement('div');
+                espacio.className = 'dia';
+                diasContainer.appendChild(espacio);
+            }
+
+            for (let i = 1; i <= diasEnMes; i++) {
+                const dia = document.createElement('div');
+                dia.textContent = i;
+                dia.className = 'dia';
+
+                if (anio === anioHoy && mes === mesHoy && i === diaHoy) {
+                    dia.classList.add('hoy');
+                }
+
+                const key = `${anio}-${mes}-${i}`;
+
+                if (notas[key]) {
+                    dia.classList.add('con-nota');
+                }
+
+                dia.onclick = () => seleccionarDia(anio, mes, i);
+                diasContainer.appendChild(dia);
+            }
+        }
+
+        function seleccionarDia(anio, mes, dia) {
+            selectedDay = `${anio}-${mes}-${dia}`;
+            document.querySelectorAll('.dia').forEach(d => d.classList.remove('seleccionado'));
+            const diaDiv = Array.from(diasContainer.children).find(d => d.textContent == dia);
+            if (diaDiv) diaDiv.classList.add('seleccionado');
+
+            notaInput.value = notas[selectedDay] || '';
+        }
+
+        function guardarNota() {
+            if (!selectedDay) {
+                alert('Por favor, selecciona un día del calendario.');
+                return;
+            }
+
+            if (notaInput.value.trim() === '') {
+                alert('No puedes guardar notas vacías.');
+                return;
+            }
+
+            notas[selectedDay] = notaInput.value;
+            localStorage.setItem('notasCalendario', JSON.stringify(notas));
+
+            crearCalendario();
+            alert('¡Nota guardada!');
+        }
+
+        function borrarNota() {
+            if (!selectedDay) {
+                alert('Por favor, selecciona un día del calendario.');
+                return;
+            }
+
+            if (notas[selectedDay]) {
+                delete notas[selectedDay];
+                localStorage.setItem('notasCalendario', JSON.stringify(notas));
+                crearCalendario();
+                notaInput.value = '';
+                alert('¡Nota eliminada!');
+            } else {
+                alert('No hay ninguna nota para borrar en este día.');
+            }
+        }
+
+        mesSelect.addEventListener('change', crearCalendario);
+        anioSelect.addEventListener('change', crearCalendario);
+
+        llenarSelects();
+        restaurarSeleccion();
+        crearCalendario();
+    </script>
+</body>
+</html>
